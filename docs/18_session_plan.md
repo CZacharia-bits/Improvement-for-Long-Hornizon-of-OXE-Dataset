@@ -1,5 +1,7 @@
 # 18-Session Plan: Long-Horizon Manipulation SOTA
 
+> **Current Status:** Session 6 of 18 — *Success Detector Training*
+
 **Research Question:**  
 > How can we reduce compounding error and increase success on multi-step (≥10 sub-steps) manipulation tasks across embodiments without sacrificing single-step performance?
 
@@ -11,20 +13,22 @@
 
 ## Overview
 
-| Phase | Sessions | Focus |
-|-------|----------|-------|
-| **1. Data Infrastructure** | 1–4 | Make data trainable for long-horizon |
-| **2. Evaluation Infrastructure** | 5–7 | Fast, automatic, repeatable evaluation |
-| **3. Baseline & Understanding** | 8–10 | Implement baseline, understand SOTA |
-| **4. H1 — Hierarchical Subgoals** | 11–14 | Core contribution #1 |
-| **5. H2 — Uncertainty Replanning** | 15–17 | Core contribution #2 |
-| **6. Final Evaluation & Paper** | 18 | Full eval, paper prep |
+| Phase | Sessions | Focus | Status |
+|-------|----------|-------|--------|
+| **1. Data Infrastructure** | 1–4 | Make data trainable for long-horizon | ✅ Complete |
+| **2. Evaluation Infrastructure** | 5–7 | Fast, automatic, repeatable evaluation | 🔄 In Progress |
+| **3. Baseline & Understanding** | 8–10 | Implement baseline, understand SOTA | ⬚ Pending |
+| **4. H1 — Hierarchical Subgoals** | 11–14 | Core contribution #1 | ⬚ Pending |
+| **5. H2 — Uncertainty Replanning** | 15–17 | Core contribution #2 | ⬚ Pending |
+| **6. Final Evaluation & Paper** | 18 | Full eval, paper prep | ⬚ Pending |
 
 ---
 
-## Phase 1: Data Infrastructure (Sessions 1–4)
+## Phase 1: Data Infrastructure (Sessions 1–4) ✅
 
-### Session 1: Dataset Catalog & Exploration
+### Session 1: Dataset Catalog & Exploration ✅
+
+**Status:** Complete
 
 **Objectives:**
 - Create master catalog of all 12 OXE datasets
@@ -65,7 +69,9 @@
 
 ---
 
-### Session 2: Action Normalization
+### Session 2: Action Normalization ✅
+
+**Status:** Complete
 
 **Objectives:**
 - Compute per-dataset action statistics
@@ -95,7 +101,9 @@
 
 ---
 
-### Session 3: Sequence Packing
+### Session 3: Sequence Packing ✅
+
+**Status:** Complete
 
 **Objectives:**
 - Create windowed sequences for long-horizon training
@@ -128,7 +136,9 @@ gs://x-embodiment-imporvement/sequences/
 
 ---
 
-### Session 4: Data Validation & Visualization
+### Session 4: Data Validation & Visualization ✅
+
+**Status:** Complete
 
 **Objectives:**
 - Validate packed data quality
@@ -153,9 +163,11 @@ gs://x-embodiment-imporvement/sequences/
 
 ---
 
-## Phase 2: Evaluation Infrastructure (Sessions 5–7)
+## Phase 2: Evaluation Infrastructure (Sessions 5–7) 🔄
 
-### Session 5: Test Set Lockdown & Manifests
+### Session 5: Test Set Lockdown & Manifests ✅
+
+**Status:** Complete
 
 **Objectives:**
 - Define held-out evaluation sets
@@ -186,7 +198,9 @@ gs://x-embodiment-imporvement/sequences/
 
 ---
 
-### Session 6: Success Detector Training
+### Session 6: Success Detector Training 🔄
+
+**Status:** 🔄 IN PROGRESS
 
 **Objectives:**
 - Train lightweight success classifiers
@@ -211,7 +225,7 @@ gs://x-embodiment-imporvement/sequences/
 - [ ] Manual labeling (time-intensive but accurate)
 - [ ] Heuristic-based (distance to goal < threshold)
 - [ ] Existing labels in dataset metadata
-- [ ] **TBD: Decide before Session 6**
+- [ ] **Decision needed this session**
 
 ---
 
@@ -554,39 +568,39 @@ gs://x-embodiment-imporvement/sequences/
 
 ## Summary: Deliverables by Session
 
-| Session | Key Deliverable |
-|---------|----------------|
-| 1 | `data/catalog.json` |
-| 2 | `data/scales/*.json` + normalization utils |
-| 3 | Sequence packing script + GCS upload |
-| 4 | `data/validation_report.md` + sample GIFs |
-| 5 | `eval/test_manifest.json` |
-| 6 | `eval/success_detectors/*.onnx` |
-| 7 | `eval/metrics.py` + suite JSONs |
-| 8 | `docs/sota_analysis.md` |
-| 9 | Training script + initial run |
-| 10 | `results/baseline/` + analysis doc |
-| 11 | Subgoal predictor architecture |
-| 12 | Trained subgoal predictor |
-| 13 | Subgoal-conditioned policy |
-| 14 | `results/h1/` + H1 analysis |
-| 15 | Uncertainty-aware policy |
-| 16 | Replanning controller |
-| 17 | `results/h1_h2/` + H2 analysis |
-| 18 | `results/final/` + paper outline |
+| Session | Key Deliverable | Status |
+|---------|----------------|--------|
+| 1 | `data/catalog.json` | ✅ |
+| 2 | `data/scales/*.json` + normalization utils | ✅ |
+| 3 | Sequence packing script + GCS upload | ✅ |
+| 4 | `data/validation_report.md` + sample GIFs | ✅ |
+| 5 | `eval/test_manifest.json` | ✅ |
+| **6** | **`eval/success_detectors/*.onnx`** | **🔄** |
+| 7 | `eval/metrics.py` + suite JSONs | ⬚ |
+| 8 | `docs/sota_analysis.md` | ⬚ |
+| 9 | Training script + initial run | ⬚ |
+| 10 | `results/baseline/` + analysis doc | ⬚ |
+| 11 | Subgoal predictor architecture | ⬚ |
+| 12 | Trained subgoal predictor | ⬚ |
+| 13 | Subgoal-conditioned policy | ⬚ |
+| 14 | `results/h1/` + H1 analysis | ⬚ |
+| 15 | Uncertainty-aware policy | ⬚ |
+| 16 | Replanning controller | ⬚ |
+| 17 | `results/h1_h2/` + H2 analysis | ⬚ |
+| 18 | `results/final/` + paper outline | ⬚ |
 
 ---
 
 ## Open Decisions (TBD)
 
-| Decision | Options | Decide By |
-|----------|---------|-----------|
-| Success labeling strategy | Manual / Heuristic / Metadata | Session 5 |
-| Baseline model | Train from scratch / Fine-tune Octo / Fine-tune OpenVLA | Session 8 |
-| Subgoal horizon K | 8 / 16 / variable | Session 11 |
-| Uncertainty method | Ensemble / MC Dropout / Learned | Session 15 |
-| Paper venue | CoRL / ICRA / NeurIPS | Session 18 |
-| Demo format | Simulation video / Real robot (if available) | Session 17 |
+| Decision | Options | Decide By | Status |
+|----------|---------|-----------|--------|
+| Success labeling strategy | Manual / Heuristic / Metadata | Session 6 | 🔄 Deciding now |
+| Baseline model | Train from scratch / Fine-tune Octo / Fine-tune OpenVLA | Session 8 | ⬚ Pending |
+| Subgoal horizon K | 8 / 16 / variable | Session 11 | ⬚ Pending |
+| Uncertainty method | Ensemble / MC Dropout / Learned | Session 15 | ⬚ Pending |
+| Paper venue | CoRL / ICRA / NeurIPS | Session 18 | ⬚ Pending |
+| Demo format | Simulation video / Real robot (if available) | Session 17 | ⬚ Pending |
 
 ---
 
