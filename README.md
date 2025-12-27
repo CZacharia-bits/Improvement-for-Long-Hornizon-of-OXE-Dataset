@@ -16,6 +16,51 @@ make visualize-all  # Generate visualizations for all 12 datasets
 
 ---
 
+## What Is This Dataset For?
+
+The OXE dataset contains **expert demonstrations** — videos of robots successfully performing tasks like picking, placing, and manipulating objects. All trajectories are successful (no failure cases).
+
+### The Goal: Train One Model for Many Robots
+
+Instead of training separate AI models for each robot type, researchers use OXE to train **generalist policies** — a single neural network that works across different robot arms (UR5, Franka, KUKA, etc.).
+
+### What Are We Predicting?
+
+**Frame-by-frame action prediction (Behavior Cloning):**
+
+```
+[Current camera image] + ["Pick up the blue cube"] → Model → [Next action]
+```
+
+The model predicts **7 numbers** per frame:
+
+| Output | Description |
+|--------|-------------|
+| Δx, Δy, Δz | How much to move the gripper (position) |
+| Δroll, Δpitch, Δyaw | How much to rotate the gripper (orientation) |
+| gripper | Open (1) or close (0) |
+
+### Why Only 7 Numbers for Complex Robot Arms?
+
+Different robots have different numbers of joints (6-DoF, 7-DoF, etc.), but the AI doesn't predict joint angles. Instead:
+
+1. **AI predicts:** Where the gripper should go (end-effector position)
+2. **Robot calculates:** What joint angles achieve that position (Inverse Kinematics)
+
+This abstraction lets the same model work on any robot — the robot handles its own body mechanics.
+
+### Cross-Embodiment Challenges
+
+| Challenge | How It's Handled |
+|-----------|------------------|
+| **Different control frequencies** (3-10 Hz) | Not standardized — models learn to handle variation |
+| **Different units** (m, cm, radians) | Normalized during preprocessing |
+| **Different joint counts** | Abstracted via end-effector predictions |
+| **Different grippers** | Simplified to 1D open/close signal |
+| **Different camera positions** | Models learn visual invariance from diverse data |
+
+---
+
 ## Data Specification
 
 ### Storage Format
