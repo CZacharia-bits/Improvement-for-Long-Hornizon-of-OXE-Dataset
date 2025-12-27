@@ -1,170 +1,187 @@
 # OXE Dataset Visualization
 
-A Python package for loading and visualizing data from the Open X-Embodiment (OXE) dataset stored in Google Cloud Storage as TFRecord files.
+A Python toolkit for loading and visualizing robotics data from the [Open X-Embodiment](https://robotics-transformer-x.github.io/) dataset.
 
-## Overview
+![Python 3.x](https://img.shields.io/badge/python-3.x-blue.svg)
+![TensorFlow](https://img.shields.io/badge/tensorflow-%3E%3D2.13-orange.svg)
 
-This package provides utilities to:
-- Load TFRecord datasets from Google Cloud Storage
-- Visualize image sequences from the dataset
-- Inspect dataset structure and feature keys
+---
 
-## Project Structure
-
-```
-oxe-viz/
-├── src/
-│   └── oxe_viz/
-│       ├── __init__.py
-│       ├── config.py          # Configuration for GCS paths
-│       ├── data_loader.py      # Functions to load TFRecord datasets
-│       ├── visualize_images.py # Visualization utilities
-│       └── inspect_example.py  # Dataset inspection utilities
-├── requirements.txt
-├── Makefile
-└── README.md
-```
-
-## Installation
-
-Install the required dependencies:
+## Quick Start
 
 ```bash
-make install
+make install        # Install dependencies
+make visualize-all  # Generate visualizations for all 12 datasets
 ```
 
-Or manually:
+---
 
-```bash
-pip install -r requirements.txt
+## Data Specification
+
+### Storage Format
+
+The OXE dataset is stored as **TFRecord** files in Google Cloud Storage:
+
 ```
+gs://x-embodiment-imporvement/oxe_v1_0/{dataset_name}/{version}/{dataset_name}-{split}.tfrecord-*
+```
+
+### Data Structure
+
+Each TFRecord contains **trajectories** (episodes) with the following hierarchy:
+
+```
+Trajectory
+├── steps/
+│   ├── observation/
+│   │   ├── rgb_static        # Static camera RGB image (JPEG encoded)
+│   │   ├── rgb_gripper       # Gripper camera RGB image
+│   │   ├── image             # Primary image (dataset-dependent)
+│   │   └── ...               # Additional sensor data
+│   ├── action/               # Robot action commands
+│   └── reward/               # Task reward signal
+└── metadata/                 # Episode-level information
+```
+
+### Key Feature Types
+
+| Feature Key | Type | Description |
+|------------|------|-------------|
+| `steps/observation/rgb_static` | `VarLenFeature(string)` | JPEG-encoded image sequence from static camera |
+| `steps/observation/rgb_gripper` | `VarLenFeature(string)` | JPEG-encoded image sequence from gripper camera |
+| `steps/observation/image` | `VarLenFeature(string)` | Primary observation image |
+| `steps/action/*` | `VarLenFeature(float)` | Robot action parameters |
+
+> **Note**: Available features vary by dataset. Use `make inspect` to explore a specific dataset's structure.
+
+---
+
+## Inputs / Outputs
+
+### Inputs
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `dataset_name` | `str` | `"taco_play"` | Name of the OXE dataset |
+| `split` | `str` | `"train"` | Dataset split (`train`, `val`) |
+| `n` | `int` | `8` | Number of frames to visualize |
+| `image_key` | `str` | Auto-detected | Feature key for images |
+
+### Outputs
+
+| Output | Format | Description |
+|--------|--------|-------------|
+| Visualization | PNG | Grid of N frames from first trajectory |
+| Inspection | Console | List of all feature keys in dataset |
+
+---
+
+## How It Works
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                      Data Pipeline                          │
+├─────────────────────────────────────────────────────────────┤
+│                                                             │
+│   config.py          Defines GCS bucket & path structure    │
+│       │                                                     │
+│       ▼                                                     │
+│   data_loader.py     Constructs GCS pattern, loads TFRecords│
+│       │              using tf.data.TFRecordDataset          │
+│       ▼                                                     │
+│   visualize_images.py                                       │
+│       │  1. Auto-detects image feature key                  │
+│       │  2. Parses VarLenFeature to extract image bytes     │
+│       │  3. Decodes JPEG → RGB tensor                       │
+│       │  4. Renders grid with matplotlib                    │
+│       ▼                                                     │
+│   {dataset}_first_frames.png                                │
+│                                                             │
+└─────────────────────────────────────────────────────────────┘
+```
+
+**Key algorithms:**
+- **Auto-detection**: Scans feature keys for `rgb_static` → `image` → `rgb_gripper` → any key containing "image/rgb"
+- **Parallel loading**: Uses `tf.data.AUTOTUNE` for optimized I/O
+- **Variable-length parsing**: Handles trajectories of different lengths via `tf.io.VarLenFeature`
+
+---
+
+## Components
+
+| Module | Purpose |
+|--------|---------|
+| `config.py` | GCS bucket configuration (`OXEDatasetConfig` dataclass) |
+| `data_loader.py` | `gcs_pattern()` and `load_raw()` for TFRecord loading |
+| `visualize_images.py` | `visualize_first_n()` and `visualize_all_datasets()` |
+| `inspect_example.py` | `inspect_one()` to print dataset feature keys |
+| `list_datasets.py` | `list_available_datasets()` from GCS bucket |
+
+---
+
+## Available Datasets
+
+| # | Dataset | Version | Robot Type |
+|---|---------|---------|------------|
+| 1 | `berkeley_autolab_ur5` | 0.1.0 | UR5 |
+| 2 | `berkeley_cable_routing` | 0.1.0 | Franka |
+| 3 | `bridge` | 0.1.0 | WidowX |
+| 4 | `fractal20220817_data` | 0.1.0 | Franka |
+| 5 | `jaco_play` | 0.1.0 | Jaco |
+| 6 | `kuka` | 0.1.0 | Kuka IIWA |
+| 7 | `language_table` | 0.0.1 | xArm |
+| 8 | `nyu_door_opening_surprising_effectiveness` | 0.1.0 | Hello Robot |
+| 9 | `roboturk` | 0.1.0 | Sawyer |
+| 10 | `taco_play` | 0.1.0 | Franka |
+| 11 | `toto` | 0.1.0 | Franka |
+| 12 | `viola` | 0.1.0 | Franka |
+
+---
 
 ## Usage
 
-### Visualize Dataset Images
-
-Generate a visualization of the first N frames from a dataset:
-
 ```bash
-make visualize
+make help           # Show all commands
+make visualize      # Visualize taco_play only
+make visualize-all  # Visualize all datasets
+make inspect        # Show feature keys for taco_play
+make list-datasets  # List available datasets
+make clean          # Remove generated PNGs
 ```
 
-This will:
-- Load the `taco_play` dataset from the train split
-- Extract the first 8 frames from the first trajectory
-- Save the visualization as `taco_play_first_frames.png`
-
-### Inspect Dataset Structure
-
-Inspect the structure of a dataset to see available feature keys:
-
-```bash
-make inspect
-```
-
-This will print all feature keys in the dataset and highlight image-related keys.
-
-### Custom Usage
-
-You can also use the functions programmatically:
+**Python API:**
 
 ```python
 from src.oxe_viz.visualize_images import visualize_first_n
 from src.oxe_viz.inspect_example import inspect_one
-from src.oxe_viz.data_loader import load_raw
 
-# Visualize with custom parameters
-visualize_first_n(
-    dataset_name="taco_play",
-    split="train",
-    n=10,
-    out_path="custom_output.png"
-)
-
-# Inspect a different dataset
-inspect_one("language_table", "train")
-
-# Load raw dataset
-dataset = load_raw("taco_play", "train")
+visualize_first_n("bridge", split="train", n=10, out_path="bridge_viz.png")
+inspect_one("kuka", "train")
 ```
 
-## How It Works
+---
 
-### Architecture
+## Project To-Do
 
-1. **config.py**: Defines the `OXEDatasetConfig` class that specifies the GCS bucket and path structure for OXE datasets.
+- [ ] Add action trajectory visualization (plot joint positions over time)
+- [ ] Add video export (MP4/GIF from image sequences)
+- [ ] Support reward/success visualization
+- [ ] Multi-trajectory comparison view
+- [ ] Interactive web-based viewer
+- [ ] Add unit tests and CI pipeline
+- [ ] Publish as pip-installable package
 
-2. **data_loader.py**: 
-   - `gcs_pattern()`: Constructs the GCS path pattern for a given dataset and split
-   - `load_raw()`: Loads TFRecord files from GCS and returns a TensorFlow dataset
-
-3. **visualize_images.py**:
-   - `parse_example()`: Parses a TFRecord example to extract image sequences
-   - `visualize_first_n()`: Loads a dataset, extracts the first N frames, and saves them as a visualization
-
-4. **inspect_example.py**:
-   - `inspect_one()`: Loads a single example and prints all available feature keys
-
-### Data Flow
-
-```
-config.py (GCS paths)
-    ↓
-data_loader.py (load TFRecord files)
-    ↓
-visualize_images.py / inspect_example.py (process and visualize)
-```
-
-### Supported Datasets
-
-The package supports datasets from the OXE v1.0 collection. There are **12 available datasets**:
-
-1. `berkeley_autolab_ur5`
-2. `berkeley_cable_routing`
-3. `bridge`
-4. `fractal20220817_data`
-5. `jaco_play`
-6. `kuka`
-7. `language_table` (uses version `0.0.1`)
-8. `nyu_door_opening_surprising_effectiveness`
-9. `roboturk`
-10. `taco_play` (default)
-11. `toto`
-12. `viola`
-
-**List all available datasets:**
-```bash
-make list-datasets
-```
-
-By default, the package uses:
-- Dataset: `taco_play`
-- Split: `train`
-- Version: `0.1.0` (or `0.0.1` for `language_table`)
-
-The dataset is loaded from: `gs://x-embodiment-imporvement/oxe_v1_0/{dataset_name}/{version}/{dataset_name}-{split}.tfrecord-*`
+---
 
 ## Requirements
 
 - Python 3.x
-- TensorFlow >= 2.13
+- TensorFlow ≥ 2.13
 - Matplotlib
+- GCS access (datasets are public)
 
-## Output
+---
 
-The visualization script generates PNG images showing a grid of frames from the dataset. The default output is `taco_play_first_frames.png`.
+## License
 
-## Cleanup
-
-Remove generated image files:
-
-```bash
-make clean
-```
-
-## Notes
-
-- The visualization uses the static camera view (`steps/observation/rgb_static`) by default. You can modify `IMAGE_FEATURE_KEY` in `visualize_images.py` to use the gripper view (`steps/observation/rgb_gripper`) instead.
-- The package requires access to Google Cloud Storage to load datasets.
-- Image sequences are stored as variable-length features in the TFRecord format.
-
+MIT
