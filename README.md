@@ -1,9 +1,15 @@
-# OXE Dataset Visualization
+# OXE Dataset Visualization & Evaluation
 
-A Python toolkit for loading and visualizing robotics data from the [Open X-Embodiment](https://robotics-transformer-x.github.io/) dataset.
+A Python package for loading, visualizing, and evaluating SOTA models on the Open X-Embodiment (OXE) dataset stored in Google Cloud Storage as TFRecord files.
 
 ![Python 3.x](https://img.shields.io/badge/python-3.x-blue.svg)
 ![TensorFlow](https://img.shields.io/badge/tensorflow-%3E%3D2.13-orange.svg)
+
+This package provides utilities to:
+- Load TFRecord datasets from Google Cloud Storage
+- Visualize image sequences from the dataset
+- Inspect dataset structure and feature keys
+- Evaluate SOTA robotics models (RT-1, RT-2, Octo, OpenVLA, etc.) on OXE datasets
 
 ---
 
@@ -58,6 +64,25 @@ This abstraction lets the same model work on any robot — the robot handles its
 | **Different joint counts** | Abstracted via end-effector predictions |
 | **Different grippers** | Simplified to 1D open/close signal |
 | **Different camera positions** | Models learn visual invariance from diverse data |
+
+---
+
+## Project Structure
+
+```
+oxe-viz/
+├── src/
+│   └── oxe_viz/
+│       ├── __init__.py
+│       ├── config.py            # Configuration for GCS paths
+│       ├── data_loader.py       # Functions to load TFRecord datasets
+│       ├── visualize_images.py  # Visualization utilities
+│       ├── inspect_example.py   # Dataset inspection utilities
+│       └── evaluate_models.py   # Model evaluation framework
+├── requirements.txt
+├── Makefile
+└── README.md
+```
 
 ---
 
@@ -161,6 +186,7 @@ Trajectory
 | `visualize_images.py` | `visualize_first_n()` and `visualize_all_datasets()` |
 | `inspect_example.py` | `inspect_one()` to print dataset feature keys |
 | `list_datasets.py` | `list_available_datasets()` from GCS bucket |
+| `evaluate_models.py` | Model evaluation framework for SOTA models |
 
 ---
 
@@ -194,7 +220,43 @@ make list-datasets  # List available datasets
 make clean          # Remove generated PNGs
 ```
 
-**Python API:**
+### Inspect Dataset Structure
+
+Inspect the structure of a dataset to see available feature keys:
+
+```bash
+make inspect
+```
+
+This will print all feature keys in the dataset and highlight image-related keys.
+
+### Evaluate Models on Datasets
+
+Evaluate SOTA models on OXE datasets:
+
+```bash
+# Evaluate on a single dataset
+make evaluate
+
+# Evaluate on all datasets
+make evaluate-all
+```
+
+**Note:** Model loading needs to be implemented for each model type. The framework provides the structure for:
+- RT-1 (Robotic Transformer 1)
+- RT-2 (Vision-Language-Action)
+- Octo
+- OpenVLA
+- Custom TensorFlow/Keras models
+
+The evaluation computes:
+- **Action Prediction Metrics**: MSE, MAE, RMSE between predicted and ground truth actions
+- **Reward Statistics**: Mean and standard deviation of rewards
+- **Success Rate**: Percentage of successful trajectories (if available)
+
+Results are saved to `evaluation_results.json` when evaluating all datasets.
+
+### Python API
 
 ```python
 from src.oxe_viz.visualize_images import visualize_first_n
@@ -223,7 +285,12 @@ inspect_one("kuka", "train")
 - Python 3.x
 - TensorFlow ≥ 2.13
 - Matplotlib
+- NumPy >= 1.21.0
 - GCS access (datasets are public)
+
+**Optional (for model evaluation):**
+- Transformers library (for RT-1, RT-2 models from Hugging Face)
+- Model-specific libraries (Octo, OpenVLA, etc.)
 
 ---
 
