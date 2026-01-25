@@ -1,10 +1,11 @@
 """Evaluation utilities for SOTA models on OXE datasets."""
-import tensorflow as tf
-import numpy as np
-from typing import Dict, List, Optional, Tuple, Any
-from dataclasses import dataclass
+
 import json
-from pathlib import Path
+from dataclasses import dataclass
+from typing import Any, Optional
+
+import numpy as np
+import tensorflow as tf
 
 from .data_loader import load_raw
 from .list_datasets import list_available_datasets
@@ -13,6 +14,7 @@ from .list_datasets import list_available_datasets
 @dataclass
 class EvaluationMetrics:
     """Container for evaluation metrics."""
+
     dataset_name: str
     model_name: str
     num_trajectories: int
@@ -23,8 +25,8 @@ class EvaluationMetrics:
     success_rate: Optional[float] = None
     reward_mean: Optional[float] = None
     reward_std: Optional[float] = None
-    
-    def to_dict(self) -> Dict[str, Any]:
+
+    def to_dict(self) -> dict[str, Any]:
         """Convert metrics to dictionary."""
         return {
             "dataset_name": self.dataset_name,
@@ -40,13 +42,13 @@ class EvaluationMetrics:
         }
 
 
-def parse_trajectory(serialized: tf.Tensor) -> Dict[str, tf.Tensor]:
+def parse_trajectory(serialized: tf.Tensor) -> dict[str, tf.Tensor]:
     """
     Parse a TFRecord example to extract trajectory data.
-    
+
     Args:
         serialized: Serialized TFRecord example
-    
+
     Returns:
         Dictionary with parsed features
     """
@@ -56,22 +58,20 @@ def parse_trajectory(serialized: tf.Tensor) -> Dict[str, tf.Tensor]:
         "steps/action/rel_actions_gripper": tf.io.VarLenFeature(tf.float32),
         "steps/action/rel_actions_world": tf.io.VarLenFeature(tf.float32),
         "steps/action/terminate_episode": tf.io.VarLenFeature(tf.float32),  # Can be float or int
-        
         # Observations
         "steps/observation/rgb_static": tf.io.VarLenFeature(tf.string),
         "steps/observation/rgb_gripper": tf.io.VarLenFeature(tf.string),
         "steps/observation/robot_obs": tf.io.VarLenFeature(tf.float32),
         "steps/observation/natural_language_instruction": tf.io.VarLenFeature(tf.string),
-        
         # Episode info
         "steps/is_first": tf.io.VarLenFeature(tf.int64),
         "steps/is_last": tf.io.VarLenFeature(tf.int64),
         "steps/is_terminal": tf.io.VarLenFeature(tf.int64),
         "steps/reward": tf.io.VarLenFeature(tf.float32),
     }
-    
+
     parsed = tf.io.parse_single_example(serialized, feature_description)
-    
+
     # Convert sparse to dense
     result = {}
     for key, value in parsed.items():
@@ -79,33 +79,33 @@ def parse_trajectory(serialized: tf.Tensor) -> Dict[str, tf.Tensor]:
             result[key] = tf.sparse.to_dense(value)
         else:
             result[key] = value
-    
+
     return result
 
 
 def load_model(model_name: str, model_path: Optional[str] = None):
     """
     Load a pre-trained model for evaluation.
-    
+
     Supported models:
     - "rt-1": RT-1 (Robotic Transformer 1)
     - "rt-2": RT-2 (Vision-Language-Action)
     - "octo": Octo model
     - "openvla": OpenVLA model
     - "custom": Custom model from path
-    
+
     Args:
         model_name: Name of the model to load
         model_path: Optional path to model weights (for custom models)
-    
+
     Returns:
         Loaded model object
-    
+
     Raises:
         NotImplementedError: If model loading is not yet implemented
     """
     model_name_lower = model_name.lower()
-    
+
     if model_name_lower == "rt-1":
         # RT-1 model loading
         raise NotImplementedError(
@@ -121,21 +121,20 @@ def load_model(model_name: str, model_path: Optional[str] = None):
     elif model_name_lower == "octo":
         # Octo model loading from octo-models library
         try:
-            import octo
             from octo.model.octo_model import OctoModel
-            
+
             # Load Octo base model (pre-trained on OXE datasets)
             # Model checkpoint is downloaded automatically on first use
             print("  Loading Octo model from checkpoint...")
             print("  Note: First run will download ~2GB model weights")
-            
+
             # Load the base Octo model from HuggingFace
             # According to Octo README, use HuggingFace path format
             model = OctoModel.load_pretrained("hf://rail-berkeley/octo-base-1.5")
-            
+
             print("  ✓ Octo model loaded successfully")
             return model
-            
+
         except ImportError as e:
             error_msg = (
                 "Octo library not installed or missing dependencies.\n"
@@ -149,9 +148,9 @@ def load_model(model_name: str, model_path: Optional[str] = None):
                 "  Alternative: Use a different model (rt-1, rt-2, openvla) if available.\n"
                 f"  Original error: {e}"
             )
-            raise ImportError(error_msg)
+            raise ImportError(error_msg) from e
         except Exception as e:
-            raise RuntimeError(f"Failed to load Octo model: {e}")
+            raise RuntimeError(f"Failed to load Octo model: {e}") from e
     elif model_name_lower == "openvla":
         # OpenVLA model loading
         raise NotImplementedError(
@@ -163,39 +162,33 @@ def load_model(model_name: str, model_path: Optional[str] = None):
         try:
             return tf.keras.models.load_model(model_path)
         except Exception as e:
-            raise ValueError(f"Failed to load custom model from {model_path}: {e}")
+            raise ValueError(f"Failed to load custom model from {model_path}: {e}") from e
     else:
         raise ValueError(
-            f"Unknown model: {model_name}. "
-            f"Supported: rt-1, rt-2, octo, openvla, custom"
+            f"Unknown model: {model_name}. Supported: rt-1, rt-2, octo, openvla, custom"
         )
 
 
-def predict_action(
-    model: Any,
-    observation: Dict[str, tf.Tensor],
-    model_name: str
-) -> np.ndarray:
+def predict_action(model: Any, observation: dict[str, tf.Tensor], model_name: str) -> np.ndarray:
     """
     Predict action from observation using the model.
-    
+
     Args:
         model: Loaded model
         observation: Dictionary with observation data
         model_name: Name of the model (for model-specific preprocessing)
-    
+
     Returns:
         Predicted action array
     """
     model_name_lower = model_name.lower()
-    
+
     if model_name_lower == "octo":
         # Octo model prediction
         try:
             import torch
             from PIL import Image
-            import io
-            
+
             # Extract images from observation
             # Octo expects images in a specific format
             if "steps/observation/rgb_static" in observation:
@@ -204,23 +197,23 @@ def predict_action(
                 image_bytes = observation["steps/observation/rgb_gripper"].numpy()
             else:
                 raise ValueError("No image found in observation")
-            
+
             # Decode first image (Octo uses single image for prediction)
             if len(image_bytes) > 0:
                 img = tf.io.decode_image(image_bytes[0], channels=3).numpy()
             else:
                 raise ValueError("Empty image sequence")
-            
+
             # Convert to PIL Image and then to tensor format Octo expects
             pil_img = Image.fromarray(img)
-            
+
             # Extract language instruction if available
             instruction = ""
             if "steps/observation/natural_language_instruction" in observation:
                 inst_bytes = observation["steps/observation/natural_language_instruction"].numpy()
                 if len(inst_bytes) > 0:
-                    instruction = inst_bytes[0].decode('utf-8')
-            
+                    instruction = inst_bytes[0].decode("utf-8")
+
             # Prepare observation dict for Octo
             # Octo expects: {"image_primary": image, "language_instruction": text}
             obs_dict = {
@@ -228,11 +221,11 @@ def predict_action(
             }
             if instruction:
                 obs_dict["language_instruction"] = instruction
-            
+
             # Run inference with Octo
             # Octo.predict() returns action predictions
             action = model.predict(obs_dict)
-            
+
             # Convert to numpy array
             if isinstance(action, torch.Tensor):
                 action = action.detach().cpu().numpy()
@@ -241,14 +234,14 @@ def predict_action(
                 action = action.get("action", list(action.values())[0])
                 if isinstance(action, torch.Tensor):
                     action = action.detach().cpu().numpy()
-            
+
             return np.array(action)
-            
+
         except ImportError as e:
-            raise ImportError(f"Missing dependencies for Octo prediction: {e}")
+            raise ImportError(f"Missing dependencies for Octo prediction: {e}") from e
         except Exception as e:
-            raise RuntimeError(f"Octo prediction failed: {e}")
-    
+            raise RuntimeError(f"Octo prediction failed: {e}") from e
+
     else:
         raise NotImplementedError(
             f"Action prediction for {model_name} not yet implemented. "
@@ -266,7 +259,7 @@ def evaluate_model(
 ) -> EvaluationMetrics:
     """
     Evaluate a model on an OXE dataset.
-    
+
     Args:
         model_name: Name of the model to evaluate
         dataset_name: Name of the OXE dataset
@@ -274,48 +267,48 @@ def evaluate_model(
         max_trajectories: Maximum number of trajectories to evaluate (None = all)
         max_steps_per_trajectory: Maximum steps per trajectory (None = all)
         model_path: Optional path to model weights
-    
+
     Returns:
         EvaluationMetrics object with computed metrics
     """
-    print(f"\n{'='*60}")
+    print(f"\n{'=' * 60}")
     print(f"Evaluating {model_name} on {dataset_name} ({split})")
-    print(f"{'='*60}\n")
-    
+    print(f"{'=' * 60}\n")
+
     # Load model
     print(f"Loading model: {model_name}...")
     try:
         model = load_model(model_name, model_path)
-        print(f"✓ Model loaded successfully")
+        print("✓ Model loaded successfully")
     except NotImplementedError as e:
         print(f"✗ {e}")
         raise
     except Exception as e:
         print(f"✗ Failed to load model: {e}")
         raise
-    
+
     # Load dataset
     print(f"Loading dataset: {dataset_name}...")
     try:
         ds = load_raw(dataset_name, split)
         ds = ds.map(parse_trajectory, num_parallel_calls=tf.data.AUTOTUNE)
-        print(f"✓ Dataset loaded successfully")
+        print("✓ Dataset loaded successfully")
     except Exception as e:
         print(f"✗ Failed to load dataset: {e}")
         raise
-    
+
     # Collect predictions and ground truth
     all_predicted_actions = []
     all_ground_truth_actions = []
     all_rewards = []
     num_trajectories = 0
     num_steps = 0
-    
-    print(f"\nRunning evaluation...")
+
+    print("\nRunning evaluation...")
     for traj_idx, trajectory in enumerate(ds):
         if max_trajectories and traj_idx >= max_trajectories:
             break
-        
+
         # Extract ground truth actions
         if "steps/action/actions" in trajectory:
             gt_actions = trajectory["steps/action/actions"].numpy()
@@ -324,20 +317,20 @@ def evaluate_model(
         else:
             print(f"  Warning: No action found in trajectory {traj_idx}, skipping")
             continue
-        
+
         # Extract rewards if available
         if "steps/reward" in trajectory:
             rewards = trajectory["steps/reward"].numpy()
             all_rewards.extend(rewards.flatten().tolist())
-        
+
         # Limit steps per trajectory
         if max_steps_per_trajectory:
             gt_actions = gt_actions[:max_steps_per_trajectory]
-        
+
         # Predict actions using the model
         # Process each step in the trajectory
         predicted_actions_list = []
-        
+
         # Extract observations for each step
         num_steps_in_traj = len(gt_actions)
         for step_idx in range(num_steps_in_traj):
@@ -352,7 +345,7 @@ def evaluate_model(
                         step_obs[key] = value
                 else:
                     step_obs[key] = value
-            
+
             try:
                 # Predict action for this step
                 pred_action = predict_action(model, step_obs, model_name)
@@ -361,7 +354,7 @@ def evaluate_model(
                 print(f"  Warning: Prediction failed for step {step_idx}: {e}")
                 # Use zero action as fallback
                 predicted_actions_list.append(np.zeros_like(gt_actions[0]))
-        
+
         # Stack predictions
         if predicted_actions_list:
             predicted_actions = np.stack(predicted_actions_list, axis=0)
@@ -377,35 +370,35 @@ def evaluate_model(
         else:
             # Fallback: use zeros
             predicted_actions = np.zeros_like(gt_actions)
-        
+
         all_predicted_actions.append(predicted_actions)
         all_ground_truth_actions.append(gt_actions)
         num_trajectories += 1
         num_steps += len(gt_actions)
-        
+
         if (traj_idx + 1) % 10 == 0:
             print(f"  Processed {traj_idx + 1} trajectories...")
-    
+
     if num_trajectories == 0:
         raise ValueError(f"No valid trajectories found in {dataset_name}")
-    
+
     # Compute metrics
-    print(f"\nComputing metrics...")
+    print("\nComputing metrics...")
     all_predicted_actions = np.concatenate(all_predicted_actions, axis=0)
     all_ground_truth_actions = np.concatenate(all_ground_truth_actions, axis=0)
-    
+
     # Action prediction metrics
     mse = np.mean((all_predicted_actions - all_ground_truth_actions) ** 2)
     mae = np.mean(np.abs(all_predicted_actions - all_ground_truth_actions))
     rmse = np.sqrt(mse)
-    
+
     # Reward metrics
     reward_mean = np.mean(all_rewards) if all_rewards else None
     reward_std = np.std(all_rewards) if all_rewards else None
-    
+
     # Success rate (if terminal flags available)
     success_rate = None  # Would need to check terminal flags
-    
+
     metrics = EvaluationMetrics(
         dataset_name=dataset_name,
         model_name=model_name,
@@ -418,8 +411,8 @@ def evaluate_model(
         reward_mean=reward_mean,
         reward_std=reward_std,
     )
-    
-    print(f"✓ Evaluation complete")
+
+    print("✓ Evaluation complete")
     return metrics
 
 
@@ -430,10 +423,10 @@ def evaluate_all_datasets(
     max_steps_per_trajectory: Optional[int] = None,
     model_path: Optional[str] = None,
     output_file: Optional[str] = None,
-) -> List[EvaluationMetrics]:
+) -> list[EvaluationMetrics]:
     """
     Evaluate a model on all available OXE datasets.
-    
+
     Args:
         model_name: Name of the model to evaluate
         split: Dataset split to use (default: "val")
@@ -441,19 +434,19 @@ def evaluate_all_datasets(
         max_steps_per_trajectory: Max steps per trajectory (None = all)
         model_path: Optional path to model weights
         output_file: Optional JSON file to save results
-    
+
     Returns:
         List of EvaluationMetrics for each dataset
     """
     datasets = list_available_datasets()
-    print(f"\n{'='*60}")
+    print(f"\n{'=' * 60}")
     print(f"Evaluating {model_name} on {len(datasets)} datasets")
-    print(f"{'='*60}\n")
-    
+    print(f"{'=' * 60}\n")
+
     all_metrics = []
     successful = []
     failed = []
-    
+
     for dataset_name in datasets:
         try:
             metrics = evaluate_model(
@@ -466,7 +459,7 @@ def evaluate_all_datasets(
             )
             all_metrics.append(metrics)
             successful.append(dataset_name)
-            
+
             # Print summary
             print(f"\n{dataset_name}:")
             print(f"  Trajectories: {metrics.num_trajectories}")
@@ -474,26 +467,26 @@ def evaluate_all_datasets(
             print(f"  Action MSE: {metrics.action_mse:.6f}")
             print(f"  Action MAE: {metrics.action_mae:.6f}")
             print(f"  Action RMSE: {metrics.action_rmse:.6f}")
-            
+
         except Exception as e:
             failed.append((dataset_name, str(e)))
             print(f"\n✗ {dataset_name}: {e}\n")
-    
+
     # Print summary
-    print(f"\n{'='*60}")
+    print(f"\n{'=' * 60}")
     print(f"SUMMARY: {len(successful)} successful, {len(failed)} failed")
-    print(f"{'='*60}")
-    
+    print(f"{'=' * 60}")
+
     if successful:
         print(f"\n✓ Successfully evaluated ({len(successful)}):")
         for ds in successful:
             print(f"  • {ds}")
-    
+
     if failed:
         print(f"\n✗ Failed ({len(failed)}):")
         for ds, error in failed:
             print(f"  • {ds}: {error[:60]}...")
-    
+
     # Save results (including error information)
     if output_file:
         results = {
@@ -504,33 +497,33 @@ def evaluate_all_datasets(
                 "successful_count": len(successful),
                 "failed_count": len(failed),
                 "model_name": model_name,
-                "split": split
-            }
+                "split": split,
+            },
         }
-        with open(output_file, 'w') as f:
+        with open(output_file, "w") as f:
             json.dump(results, f, indent=2)
         print(f"\n✓ Results saved to {output_file}")
         if len(failed) > 0:
             print(f"  ⚠ Warning: {len(failed)} dataset(s) failed. Check 'failed' section in JSON.")
-    
+
     return all_metrics
 
 
 def print_metrics_summary(metrics: EvaluationMetrics) -> None:
     """Print a formatted summary of evaluation metrics."""
-    print(f"\n{'='*60}")
+    print(f"\n{'=' * 60}")
     print(f"Evaluation Results: {metrics.model_name} on {metrics.dataset_name}")
-    print(f"{'='*60}")
+    print(f"{'=' * 60}")
     print(f"Trajectories evaluated: {metrics.num_trajectories}")
     print(f"Total steps: {metrics.num_steps}")
-    print(f"\nAction Prediction Metrics:")
+    print("\nAction Prediction Metrics:")
     print(f"  MSE:  {metrics.action_mse:.6f}")
     print(f"  MAE:  {metrics.action_mae:.6f}")
     print(f"  RMSE: {metrics.action_rmse:.6f}")
     if metrics.reward_mean is not None:
-        print(f"\nReward Statistics:")
+        print("\nReward Statistics:")
         print(f"  Mean: {metrics.reward_mean:.4f}")
         print(f"  Std:  {metrics.reward_std:.4f}")
     if metrics.success_rate is not None:
         print(f"\nSuccess Rate: {metrics.success_rate:.2%}")
-    print(f"{'='*60}\n")
+    print(f"{'=' * 60}\n")
