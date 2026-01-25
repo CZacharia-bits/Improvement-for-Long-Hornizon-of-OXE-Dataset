@@ -8,6 +8,7 @@ import numpy as np
 import tensorflow as tf
 
 from .data_loader import load_raw
+from .dataset_schemas import create_trajectory_parser, get_action_key, get_schema
 from .list_datasets import list_available_datasets
 
 
@@ -40,47 +41,6 @@ class EvaluationMetrics:
             "reward_mean": float(self.reward_mean) if self.reward_mean is not None else None,
             "reward_std": float(self.reward_std) if self.reward_std is not None else None,
         }
-
-
-def parse_trajectory(serialized: tf.Tensor) -> dict[str, tf.Tensor]:
-    """
-    Parse a TFRecord example to extract trajectory data.
-
-    Args:
-        serialized: Serialized TFRecord example
-
-    Returns:
-        Dictionary with parsed features
-    """
-    feature_description = {
-        # Actions
-        "steps/action/actions": tf.io.VarLenFeature(tf.float32),
-        "steps/action/rel_actions_gripper": tf.io.VarLenFeature(tf.float32),
-        "steps/action/rel_actions_world": tf.io.VarLenFeature(tf.float32),
-        "steps/action/terminate_episode": tf.io.VarLenFeature(tf.float32),  # Can be float or int
-        # Observations
-        "steps/observation/rgb_static": tf.io.VarLenFeature(tf.string),
-        "steps/observation/rgb_gripper": tf.io.VarLenFeature(tf.string),
-        "steps/observation/robot_obs": tf.io.VarLenFeature(tf.float32),
-        "steps/observation/natural_language_instruction": tf.io.VarLenFeature(tf.string),
-        # Episode info
-        "steps/is_first": tf.io.VarLenFeature(tf.int64),
-        "steps/is_last": tf.io.VarLenFeature(tf.int64),
-        "steps/is_terminal": tf.io.VarLenFeature(tf.int64),
-        "steps/reward": tf.io.VarLenFeature(tf.float32),
-    }
-
-    parsed = tf.io.parse_single_example(serialized, feature_description)
-
-    # Convert sparse to dense
-    result = {}
-    for key, value in parsed.items():
-        if isinstance(value, tf.SparseTensor):
-            result[key] = tf.sparse.to_dense(value)
-        else:
-            result[key] = value
-
-    return result
 
 
 def load_model(model_name: str, model_path: Optional[str] = None):
@@ -287,11 +247,22 @@ def evaluate_model(
         print(f"✗ Failed to load model: {e}")
         raise
 
+    # Get schema and create parser
+    print(f"Detecting schema for {dataset_name}...")
+    try:
+        schema = get_schema(dataset_name, split)
+        print(f"  Image: {schema.image_primary}")
+        print(f"  Action: {schema.action_key or schema.action_world_vector}")
+    except Exception as e:
+        print(f"✗ Failed to detect schema: {e}")
+        raise
+
     # Load dataset
     print(f"Loading dataset: {dataset_name}...")
     try:
         ds = load_raw(dataset_name, split)
-        ds = ds.map(parse_trajectory, num_parallel_calls=tf.data.AUTOTUNE)
+        parser = create_trajectory_parser(schema)
+        ds = ds.map(parser, num_parallel_calls=tf.data.AUTOTUNE)
         print("✓ Dataset loaded successfully")
     except Exception as e:
         print(f"✗ Failed to load dataset: {e}")
@@ -309,18 +280,16 @@ def evaluate_model(
         if max_trajectories and traj_idx >= max_trajectories:
             break
 
-        # Extract ground truth actions
-        if "steps/action/actions" in trajectory:
-            gt_actions = trajectory["steps/action/actions"].numpy()
-        elif "steps/action/rel_actions_world" in trajectory:
-            gt_actions = trajectory["steps/action/rel_actions_world"].numpy()
-        else:
+        # Extract ground truth actions using schema
+        action_key = get_action_key(schema, trajectory)
+        if action_key is None:
             print(f"  Warning: No action found in trajectory {traj_idx}, skipping")
             continue
+        gt_actions = trajectory[action_key].numpy()
 
         # Extract rewards if available
-        if "steps/reward" in trajectory:
-            rewards = trajectory["steps/reward"].numpy()
+        if schema.reward_key and schema.reward_key in trajectory:
+            rewards = trajectory[schema.reward_key].numpy()
             all_rewards.extend(rewards.flatten().tolist())
 
         # Limit steps per trajectory

@@ -7,7 +7,8 @@ import numpy as np
 import tensorflow as tf
 
 from .data_loader import load_raw
-from .evaluate_models import EvaluationMetrics, parse_trajectory
+from .dataset_schemas import create_trajectory_parser, get_action_key, get_schema
+from .evaluate_models import EvaluationMetrics
 from .list_datasets import list_available_datasets
 
 
@@ -36,11 +37,22 @@ def evaluate_baseline(
     print(f"Computing baseline statistics for {dataset_name} ({split})")
     print(f"{'=' * 60}\n")
 
+    # Get schema and create parser
+    print(f"Detecting schema for {dataset_name}...")
+    try:
+        schema = get_schema(dataset_name, split)
+        print(f"  Image: {schema.image_primary}")
+        print(f"  Action: {schema.action_key or schema.action_world_vector}")
+    except Exception as e:
+        print(f"✗ Failed to detect schema: {e}")
+        raise
+
     # Load dataset
     print(f"Loading dataset: {dataset_name}...")
     try:
         ds = load_raw(dataset_name, split)
-        ds = ds.map(parse_trajectory, num_parallel_calls=tf.data.AUTOTUNE)
+        parser = create_trajectory_parser(schema)
+        ds = ds.map(parser, num_parallel_calls=tf.data.AUTOTUNE)
         print("✓ Dataset loaded successfully")
     except Exception as e:
         print(f"✗ Failed to load dataset: {e}")
@@ -58,16 +70,17 @@ def evaluate_baseline(
             break
 
         try:
-            # Extract actions
-            if "steps/action" in trajectory:
-                actions = trajectory["steps/action"].numpy()
-                if len(actions.shape) > 1:
+            # Extract actions using schema
+            action_key = get_action_key(schema, trajectory)
+            if action_key:
+                actions = trajectory[action_key].numpy()
+                if len(actions.shape) >= 1 and len(actions) > 0:
                     all_actions.append(actions)
                     num_steps += len(actions)
 
-            # Extract rewards
-            if "steps/reward" in trajectory:
-                rewards = trajectory["steps/reward"].numpy()
+            # Extract rewards using schema
+            if schema.reward_key and schema.reward_key in trajectory:
+                rewards = trajectory[schema.reward_key].numpy()
                 if len(rewards) > 0:
                     all_rewards.extend(rewards.flatten().tolist())
 
