@@ -1,6 +1,6 @@
-# OXE Dataset Visualization
+# OXE Dataset Visualization & Evaluation
 
-A Python package for loading and visualizing data from the Open X-Embodiment (OXE) dataset stored in Google Cloud Storage as TFRecord files.
+A Python package for loading, visualizing, and evaluating SOTA models on the Open X-Embodiment (OXE) dataset stored in Google Cloud Storage as TFRecord files.
 
 ## Overview
 
@@ -8,6 +8,7 @@ This package provides utilities to:
 - Load TFRecord datasets from Google Cloud Storage
 - Visualize image sequences from the dataset
 - Inspect dataset structure and feature keys
+- Evaluate SOTA robotics models (RT-1, RT-2, Octo, OpenVLA, etc.) on OXE datasets
 
 ## Project Structure
 
@@ -16,10 +17,11 @@ oxe-viz/
 ├── src/
 │   └── oxe_viz/
 │       ├── __init__.py
-│       ├── config.py          # Configuration for GCS paths
-│       ├── data_loader.py      # Functions to load TFRecord datasets
-│       ├── visualize_images.py # Visualization utilities
-│       └── inspect_example.py  # Dataset inspection utilities
+│       ├── config.py            # Configuration for GCS paths
+│       ├── data_loader.py       # Functions to load TFRecord datasets
+│       ├── visualize_images.py  # Visualization utilities
+│       ├── inspect_example.py   # Dataset inspection utilities
+│       └── evaluate_models.py   # Model evaluation framework
 ├── requirements.txt
 ├── Makefile
 └── README.md
@@ -51,8 +53,9 @@ make visualize
 
 This will:
 - Load the `taco_play` dataset from the train split
-- Extract the first 8 frames from the first trajectory
+- Extract **all frames** from the first trajectory
 - Save the visualization as `taco_play_first_frames.png`
+- Use a grid layout for datasets with many frames (>10 frames)
 
 ### Inspect Dataset Structure
 
@@ -63,6 +66,32 @@ make inspect
 ```
 
 This will print all feature keys in the dataset and highlight image-related keys.
+
+### Evaluate Models on Datasets
+
+Evaluate SOTA models on OXE datasets:
+
+```bash
+# Evaluate on a single dataset
+make evaluate
+
+# Evaluate on all datasets
+make evaluate-all
+```
+
+**Note:** Model loading needs to be implemented for each model type. The framework provides the structure for:
+- RT-1 (Robotic Transformer 1)
+- RT-2 (Vision-Language-Action)
+- Octo
+- OpenVLA
+- Custom TensorFlow/Keras models
+
+The evaluation computes:
+- **Action Prediction Metrics**: MSE, MAE, RMSE between predicted and ground truth actions
+- **Reward Statistics**: Mean and standard deviation of rewards
+- **Success Rate**: Percentage of successful trajectories (if available)
+
+Results are saved to `evaluation_results.json` when evaluating all datasets.
 
 ### Custom Usage
 
@@ -105,6 +134,13 @@ dataset = load_raw("taco_play", "train")
 4. **inspect_example.py**:
    - `inspect_one()`: Loads a single example and prints all available feature keys
 
+5. **evaluate_models.py**:
+   - `load_model()`: Loads pre-trained models (RT-1, RT-2, Octo, OpenVLA, or custom)
+   - `parse_trajectory()`: Parses TFRecord examples to extract trajectories with actions, observations, and rewards
+   - `evaluate_model()`: Evaluates a model on a single dataset
+   - `evaluate_all_datasets()`: Evaluates a model on all available datasets
+   - `EvaluationMetrics`: Data class for storing evaluation results
+
 ### Data Flow
 
 ```
@@ -113,6 +149,8 @@ config.py (GCS paths)
 data_loader.py (load TFRecord files)
     ↓
 visualize_images.py / inspect_example.py (process and visualize)
+    ↓
+evaluate_models.py (evaluate SOTA models)
 ```
 
 ### Supported Datasets
@@ -149,6 +187,11 @@ The dataset is loaded from: `gs://x-embodiment-imporvement/oxe_v1_0/{dataset_nam
 - Python 3.x
 - TensorFlow >= 2.13
 - Matplotlib
+- NumPy >= 1.21.0
+
+**Optional (for model evaluation):**
+- Transformers library (for RT-1, RT-2 models from Hugging Face)
+- Model-specific libraries (Octo, OpenVLA, etc.)
 
 ## Output
 
@@ -162,9 +205,47 @@ Remove generated image files:
 make clean
 ```
 
+## Model Evaluation
+
+The evaluation framework (`evaluate_models.py`) provides a structure for evaluating SOTA robotics models on OXE datasets. To use it with actual models:
+
+1. **Install model-specific dependencies:**
+   ```bash
+   pip install transformers  # For RT-1, RT-2 from Hugging Face
+   # Or install model-specific libraries
+   ```
+
+2. **Implement model loading:**
+   - Edit `load_model()` in `evaluate_models.py` to load your chosen model
+   - Models can be loaded from Hugging Face Hub, local checkpoints, or custom paths
+
+3. **Implement action prediction:**
+   - Edit `predict_action()` in `evaluate_models.py` to run model inference
+   - Handle model-specific preprocessing (images, language instructions, etc.)
+
+4. **Run evaluation:**
+   ```bash
+   make evaluate        # Single dataset
+   make evaluate-all    # All datasets
+   ```
+
+**Example usage:**
+```python
+from oxe_viz.evaluate_models import evaluate_model, print_metrics_summary
+
+metrics = evaluate_model(
+    model_name="rt-1",
+    dataset_name="taco_play",
+    split="val",
+    max_trajectories=100,
+)
+print_metrics_summary(metrics)
+```
+
 ## Notes
 
 - The visualization uses the static camera view (`steps/observation/rgb_static`) by default. You can modify `IMAGE_FEATURE_KEY` in `visualize_images.py` to use the gripper view (`steps/observation/rgb_gripper`) instead.
 - The package requires access to Google Cloud Storage to load datasets.
 - Image sequences are stored as variable-length features in the TFRecord format.
+- Model evaluation requires implementing model-specific loading and inference logic.
 
